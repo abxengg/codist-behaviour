@@ -147,7 +147,9 @@ func (r *Runner) run(ctx context.Context, sha string) Report {
 		return failed(sha, module, methods, err)
 	}
 	ran := time.Now()
-	cmd := exec.CommandContext(ctx, javaBin, "-Xmx1g", "-cp", harness, "Harness", dir, "--json")
+	// The project's code runs here: no network, and nothing to read or write but the work folder, the JDK and the
+	// project's libraries.
+	cmd := confine{work: r.Work}.command(ctx, javaBin, "-Xmx1g", "-cp", harness, "Harness", dir, "--json")
 	cmd.Dir, cmd.Env = empty, cleanEnv(empty)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
@@ -171,6 +173,9 @@ func (r *Runner) run(ctx context.Context, sha string) Report {
 	}
 	if rep.Notes == nil {
 		rep.Notes = []string{}
+	}
+	if confinedBy == "" {
+		rep.Notes = append(rep.Notes, unconfinedNote)
 	}
 	return rep
 }
@@ -467,6 +472,7 @@ func build(ctx context.Context, javac, root, module, out string) error {
 		return compile(ctx, javac, dir, "", out)
 	}
 	mvn := mavenIn(root, dir)
+	work := filepath.Dir(root) // this version's folder, holding its source and what is built from it
 	if mvn == "" {
 		return setupError{"Building the project needs Maven: the project's mvnw, or mvn on the path."}
 	}
@@ -485,7 +491,7 @@ func build(ctx context.Context, javac, root, module, out string) error {
 		if mode != "" {
 			full = append([]string{mode}, args...)
 		}
-		cmd := exec.CommandContext(ctx, mvn, full...)
+		cmd := confine{work: work, network: mode == "", maven: true}.command(ctx, mvn, full...) // offline needs no network
 		cmd.Dir, cmd.Env = run, buildEnv()
 		var output bytes.Buffer
 		cmd.Stdout, cmd.Stderr = &output, &output
