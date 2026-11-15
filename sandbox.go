@@ -14,7 +14,9 @@ import (
 // run plugins). Both are confined by the operating system where it offers a way: sandbox-exec on macOS, bwrap on
 // Linux. Confined code can write only in Codist's work folder (and, for a build, the Maven cache), cannot read the
 // rest of the home folder, and the harness has no network; a build keeps it, since Maven may have to download.
-// Where there is no way to confine (Windows, a Linux without bwrap), the code runs as before and the report says so.
+// On Windows the harness run is at low integrity: it can write only in the work folder, but can read and use the
+// network; the Maven build is not confined there. Where there is no way to confine (a Linux without bwrap) the code
+// runs as before. Each report says how the code ran.
 
 // confine describes one confined command.
 type confine struct {
@@ -29,6 +31,10 @@ func Confined() string {
 	case "darwin":
 		if _, err := os.Stat("/usr/bin/sandbox-exec"); err == nil {
 			return "sandbox-exec"
+		}
+	case "windows":
+		if windowsConfinable() {
+			return "low integrity"
 		}
 	case "linux":
 		if p, err := exec.LookPath("bwrap"); err == nil {
@@ -110,6 +116,12 @@ func (c confine) command(ctx context.Context, name string, args ...string) *exec
 			a = append(a, "--unshare-net")
 		}
 		return exec.CommandContext(ctx, "bwrap", append(append(a, name), args...)...)
+	case "low integrity":
+		cmd := exec.CommandContext(ctx, name, args...)
+		if !c.maven { // a build writes to the Maven cache in the home folder, which low integrity forbids
+			confineWindows(cmd, work)
+		}
+		return cmd
 	}
 	return exec.CommandContext(ctx, name, args...)
 }
@@ -121,3 +133,6 @@ func lookPath(name string) string {
 
 // unconfinedNote is what a report says when the project's code ran without a sandbox.
 const unconfinedNote = "This machine has no sandbox Codist can use (sandbox-exec on macOS, bwrap on Linux), so the code ran as you, with your files in reach."
+
+// partialNote is what a report says on Windows, where the sandbox only stops writes.
+const partialNote = "On Windows the code ran at low integrity: it could not write outside Codist's work folder, but it could read your files and use the network, and the Maven build was not confined."

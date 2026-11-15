@@ -174,8 +174,11 @@ func (r *Runner) run(ctx context.Context, sha string) Report {
 	if rep.Notes == nil {
 		rep.Notes = []string{}
 	}
-	if confinedBy == "" {
+	switch confinedBy {
+	case "":
 		rep.Notes = append(rep.Notes, unconfinedNote)
+	case "low integrity":
+		rep.Notes = append(rep.Notes, partialNote)
 	}
 	return rep
 }
