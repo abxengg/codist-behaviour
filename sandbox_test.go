@@ -39,11 +39,11 @@ func TestConfined(t *testing.T) {
 	if out, err := sh(c, "cat "+secret.Name()); err == nil || strings.Contains(out, "secret") {
 		t.Errorf("a file in the home folder was read: %q", out)
 	}
-	if _, err := sh(c, "echo x > "+outside); err == nil {
-		t.Error("a file was written outside the work folder")
-	}
+	// sandbox-exec refuses the write; bwrap lets it land in a throwaway home folder in memory. Either way nothing
+	// may reach the real disk.
+	_, _ = sh(c, "echo x > "+outside)
 	if _, err := os.Stat(outside); err == nil {
-		t.Error("the file outside the work folder exists")
+		t.Error("a file was written outside the work folder")
 	}
 	if _, err := os.Stat("/usr/bin/nc"); err == nil {
 		if _, err := sh(c, "nc -z -w 2 1.1.1.1 53"); err == nil {
