@@ -32,6 +32,13 @@ This runs the project's code. The code runs in a scratch folder, with an environ
 and the locale, so cloud keys, tokens and database addresses in your environment do not reach it. Codist only runs
 it when a repository turns it on (`behaviour = true`).
 
+Both the harness run and the Maven build (which can run plugins) are confined by the operating system where it
+offers a way: `sandbox-exec` on macOS and `bwrap` on Linux. Confined code can write only in Codist's work folder
+(and, for a build, the Maven cache) and cannot read the rest of the home folder; the harness has no network, a build
+keeps it so Maven can download. On Windows the harness runs at low integrity (it can write only in the work folder,
+but can read and use the network) and the build is not confined. On a Linux without `bwrap` the code runs
+unconfined. Each report says how the code ran.
+
 ## Needs
 
 A JDK 17 or later (`java` and `javac`), and for Maven projects the project's `mvnw` or `mvn`. Gradle is not supported
